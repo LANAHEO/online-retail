@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🛒 온라인 리테일 비즈니스 대시보드 | Chart.js EDA</title>
+<meta name="description" content="온라인 리테일 데이터 탐색적 분석(EDA) 대시보드 - 매출 추이, 고객 분석, RFM 세그먼테이션">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --bg2: #0d1529;
+    --card: #111827;
+    --card2: #161f35;
+    --border: rgba(99,130,255,0.15);
+    --accent: #6382ff;
+    --accent2: #00e5ff;
+    --accent3: #a78bfa;
+    --green: #22d3a0;
+    --orange: #fb923c;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --radius: 16px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── 헤더 ──────────────────────────────── */
+  .header {
+    background: linear-gradient(135deg, #0d1529 0%, #111827 50%, #0a1628 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 32px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(99,130,255,0.12) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 50%, rgba(0,229,255,0.08) 0%, transparent 60%);
+  }
+  .header-inner { position: relative; max-width: 1400px; margin: 0 auto; }
+  .header h1 {
+    font-size: 2rem; font-weight: 900; letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #fff 0%, #a5b4fc 60%, var(--accent2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 6px;
+  }
+  .header p { color: var(--muted); font-size: 0.9rem; }
+  .header-badges { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .badge {
+    padding: 3px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+    border: 1px solid;
+  }
+  .badge-blue { color: var(--accent); border-color: var(--accent); background: rgba(99,130,255,0.1); }
+  .badge-cyan { color: var(--accent2); border-color: var(--accent2); background: rgba(0,229,255,0.1); }
+  .badge-green { color: var(--green); border-color: var(--green); background: rgba(34,211,160,0.1); }
+
+  /* ── 내비게이션 탭 ──────────────────── */
+  .nav-bar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+    display: flex; gap: 4px;
+    position: sticky; top: 0; z-index: 100;
+    overflow-x: auto;
+  }
+  .nav-btn {
+    padding: 14px 20px; border: none; background: transparent;
+    color: var(--muted); font-size: 0.85rem; font-weight: 500; font-family: inherit;
+    cursor: pointer; white-space: nowrap; transition: all 0.2s;
+    border-bottom: 3px solid transparent; margin-bottom: -1px;
+  }
+  .nav-btn:hover { color: var(--text); }
+  .nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── 메인 레이아웃 ──────────────────── */
+  main { max-width: 1400px; margin: 0 auto; padding: 32px 40px; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── KPI 카드 ──────────────────────── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px; margin-bottom: 32px;
+  }
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    position: relative; overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .kpi-card.blue::before { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .kpi-card.green::before { background: linear-gradient(90deg, var(--green), #34d399); }
+  .kpi-card.orange::before { background: linear-gradient(90deg, var(--orange), var(--yellow)); }
+  .kpi-card.purple::before { background: linear-gradient(90deg, var(--accent3), #ec4899); }
+  .kpi-card.red::before { background: linear-gradient(90deg, var(--red), var(--orange)); }
+  .kpi-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .kpi-value { font-size: 1.7rem; font-weight: 900; color: #fff; line-height: 1; }
+  .kpi-sub { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+  .kpi-icon { position: absolute; top: 20px; right: 20px; font-size: 1.4rem; opacity: 0.4; }
+
+  /* ── 차트 카드 ─────────────────────── */
+  .chart-grid { display: grid; gap: 20px; }
+  .col-2 { grid-template-columns: 1fr 1fr; }
+  .col-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .col-full { grid-template-columns: 1fr; }
+  .col-2-1 { grid-template-columns: 2fr 1fr; }
+  .col-1-2 { grid-template-columns: 1fr 2fr; }
+
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    position: relative;
+  }
+  .chart-title {
+    font-size: 1rem; font-weight: 700; color: var(--text);
+    margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
+  }
+  .chart-title .emoji { font-size: 1.1rem; }
+  .chart-subtitle { font-size: 0.78rem; color: var(--muted); margin-bottom: 20px; }
+  .chart-wrap { position: relative; }
+  .chart-wrap canvas { max-height: 320px; }
+  .chart-wrap.tall canvas { max-height: 400px; }
+  .chart-wrap.short canvas { max-height: 240px; }
+
+  /* ── 인사이트 박스 ─────────────────── */
+  .insight {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: rgba(99,130,255,0.07);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    font-size: 0.82rem;
+    color: #b8c5e8;
+    line-height: 1.7;
+  }
+  .insight strong { color: var(--accent2); }
+  .insight.green { background: rgba(34,211,160,0.07); border-left-color: var(--green); }
+  .insight.orange { background: rgba(251,146,60,0.07); border-left-color: var(--orange); }
+  .insight.red { background: rgba(248,113,113,0.07); border-left-color: var(--red); }
+
+  /* ── 테이블 ────────────────────────── */
+  .table-wrap { overflow-x: auto; margin-top: 16px; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  thead { background: rgba(99,130,255,0.12); }
+  th { padding: 10px 14px; text-align: left; font-weight: 600; color: var(--accent); font-size: 0.78rem; white-space: nowrap; }
+  td { padding: 9px 14px; border-top: 1px solid rgba(99,130,255,0.08); color: var(--text); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .right { text-align: right; }
+  .center { text-align: center; }
+  .seg-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+  }
+
+  /* ── RFM 색상 ───────────────────────── */
+  .seg-champions   { background: rgba(34,211,160,0.2); color: #22d3a0; }
+  .seg-loyal       { background: rgba(34,197,94,0.2);  color: #86efac; }
+  .seg-potential   { background: rgba(132,204,22,0.2); color: #bef264; }
+  .seg-new         { background: rgba(59,130,246,0.2); color: #93c5fd; }
+  .seg-atrisk      { background: rgba(249,115,22,0.2); color: #fdba74; }
+  .seg-cannotlose  { background: rgba(239,68,68,0.2);  color: #fca5a5; }
+  .seg-hibernating { background: rgba(168,85,247,0.2); color: #d8b4fe; }
+  .seg-lost        { background: rgba(107,114,128,0.2);color: #d1d5db; }
+
+  /* ── 히트맵 ────────────────────────── */
+  #heatmapTable th, #heatmapTable td { padding: 6px 8px; font-size: 0.7rem; white-space: nowrap; }
+  #heatmapTable td.heat-cell { text-align: center; border-radius: 4px; font-weight: 500; }
+
+  /* ── 섹션 타이틀 ─────────────────── */
+  .sec-header { margin-bottom: 24px; }
+  .sec-header h2 {
+    font-size: 1.5rem; font-weight: 900;
+    background: linear-gradient(135deg, #fff, var(--accent));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 4px;
+  }
+  .sec-header p { color: var(--muted); font-size: 0.85rem; }
+
+  /* ── 반응형 ────────────────────────── */
+  @media (max-width: 900px) {
+    main { padding: 20px; }
+    .header { padding: 24px 20px; }
+    .nav-bar { padding: 0 12px; }
+    .col-2, .col-2-1, .col-1-2, .col-3 { grid-template-columns: 1fr; }
+    .header h1 { font-size: 1.5rem; }
+  }
+
+  /* ── 애니메이션 ─────────────────── */
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .section.active .chart-card { animation: fadeUp 0.4s ease both; }
+  .section.active .chart-card:nth-child(2) { animation-delay: 0.06s; }
+  .section.active .chart-card:nth-child(3) { animation-delay: 0.12s; }
+  .section.active .chart-card:nth-child(4) { animation-delay: 0.18s; }
+
+  .footer {
+    text-align: center; padding: 32px 40px;
+    border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 0.8rem;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── 헤더 ──────────────────────────────────────── -->
+<header class="header">
+  <div class="header-inner">
+    <h1>🛒 온라인 리테일 비즈니스 대시보드</h1>
+    <p>2010년 12월 ~ 2011년 12월 | 약 54만 건 거래 데이터 기반 EDA 보고서</p>
+    <div class="header-badges">
+      <span class="badge badge-blue">Chart.js 4.4</span>
+      <span class="badge badge-cyan">정적 HTML 단일 파일</span>
+      <span class="badge badge-green">RFM 고객 세그먼테이션</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── 내비게이션 ─────────────────────────────────── -->
+<nav class="nav-bar">
+  <button class="nav-btn active" data-section="overview" id="nav-overview">📊 개요 & KPI</button>
+  <button class="nav-btn" data-section="sales" id="nav-sales">📈 매출 분석</button>
+  <button class="nav-btn" data-section="product" id="nav-product">📦 상품 분석</button>
+  <button class="nav-btn" data-section="customer" id="nav-customer">👥 고객 분석</button>
+  <button class="nav-btn" data-section="rfm" id="nav-rfm">🎯 RFM 세그먼트</button>
+  <button class="nav-btn" data-section="geo" id="nav-geo">🌍 지역 분석</button>
+</nav>
+
+<main>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--  섹션 1: 개요 & KPI                              -->
+<!-- ════════════════════════════════════════════════ -->
+<section class="section active" id="section-overview">
+  <div class="sec-header">
+    <h2>📊 핵심 비즈니스 KPI</h2>
+    <p>취소 주문 제외, 정상 거래(양수 수량·단가) 기준으로 산출된 핵심 지표입니다.</p>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">총 매출액</div>
+      <div class="kpi-value">£10.67M</div>
+      <div class="kpi-sub">정상 거래 기준</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon">📋</div>
+      <div class="kpi-label">총 주문 건수</div>
+      <div class="kpi-value">19,960</div>
+      <div class="kpi-sub">고유 인보이스 수</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-icon">👤</div>
+      <div class="kpi-label">고유 고객 수</div>
+      <div class="kpi-value">4,338</div>
+      <div class="kpi-sub">ID 식별 고객</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-label">취급 상품 종류</div>
+      <div class="kpi-value">3,922</div>
+      <div class="kpi-sub">고유 SKU 수</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-icon">🧾</div>
+      <div class="kpi-label">주문당 평균 매출</div>
+      <div class="kpi-value">£534</div>
+      <div class="kpi-sub">AOV (Average Order Value)</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-icon">❌</div>
+      <div class="kpi-label">취소 주문 비율</div>
+      <div class="kpi-value">1.71%</div>
+      <div class="kpi-sub">전체 인보이스 중</div>
+    </div>
+  </div>
+
+  <div class="chart-grid col-2-1">
+    <!-- 월별 매출 요약 -->
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">📈</span> 월별 매출 추이</div>
+      <div class="chart-subtitle">2010-12 ~ 2011-12 | 정상 거래 기준 월별 총 매출액</div>
+      <div class="chart-wrap">
+        <canvas id="overviewTrend"></canvas>
+      </div>
+      <div class="insight">
+        <strong>핵심 인사이트:</strong> 2011년 11월 £1,509,496으로 최고 매출을 기록했으며, 9월부터 가파른 상승이 시작됩니다. 연말 크리스마스 시즌 수요가 강력하게 작용하는 <strong>전형적 계절성 비즈니스</strong>임을 확인할 수 있습니다.
+      </div>
+    </div>
+    <!-- 취소 비율 도넛 -->
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">❌</span> 주문 취소율</div>
+      <div class="chart-subtitle">전체 인보이스 중 취소('C' 시작) 비율</div>
+      <div class="chart-wrap short">
+        <canvas id="cancelDonut"></canvas>
+      </div>
+      <div class="insight">
+        <strong>취소율 1.71%</strong>는 업계 평균 수준이나, 일부 대량 주문 취소가 물류·재고에 큰 영향을 줄 수 있어 <strong>취소 패턴 모니터링</strong>이 필요합니다.
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;" class="chart-grid col-2">
+    <!-- 요일별 -->
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">📅</span> 요일별 주문 건수</div>
+      <div class="chart-subtitle">요일별 주문 트랜잭션 건수 (취소 제외)</div>
+      <div class="chart-wrap short">
+        <canvas id="dayBar"></canvas>
+      </div>
+      <div class="insight">
+        <strong>목요일 최다, 토요일 0건.</strong> 토요일 데이터 부재는 시스템 휴무 또는 수집 누락 가능성이 높습니다. 주중(화~목) 집중 프로모션이 가장 효과적입니다.
+      </div>
+    </div>
+    <!-- 시간대별 -->
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">⏰</span> 시간대별 주문 분포</div>
+      <div class="chart-subtitle">주문 발생 시간대 분포 (0~24시)</div>
+      <div class="chart-wrap short">
+        <canvas id="hourLine"></canvas>
+      </div>
+      <div class="insight">
+        <strong>정오~오후 3시(12~15시)</strong>에 주문이 집중됩니다. B2B 구매 담당자의 점심시간 활용 패턴으로 해석되며, <strong>오전 10시 타겟 이메일 발송</strong>이 전환율을 극대화할 수 있습니다.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--  섹션 2: 매출 분석                               -->
+<!-- ════════════════════════════════════════════════ -->
+<section class="section" id="section-sales">
+  <div class="sec-header">
+    <h2>📈 매출 심층 분석</h2>
+    <p>시계열 트렌드, 월별 주문 패턴, 평균 단가 변화를 다각도로 분석합니다.</p>
+  </div>
+
+  <div class="chart-grid col-full">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">📊</span> 월별 매출액 및 주문 건수 (이중 축)</div>
+      <div class="chart-subtitle">막대: 매출액(GBP) | 선: 주문 건수 | 정상 거래 기준</div>
+      <div class="chart-wrap tall">
+        <canvas id="salesCombo"></canvas>
+      </div>
+      <div class="insight">
+        <strong>9월부터 급등 시작 → 11월 피크:</strong> 전년(2010-12) 대비 2011년 초에는 매출이 다소 주춤하다가, 하반기에 강력하게 반등합니다. 
+        주문 건수와 매출액이 <strong>동기화되어 상승</strong>하므로, 단순 단가 인상이 아닌 실제 구매 수요 증가로 해석됩니다.
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-grid col-2" style="margin-top:20px;">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">💲</span> 월별 평균 상품 단가</div>
+      <div class="chart-subtitle">월별 UnitPrice 평균값 추이 (GBP)</div>
+      <div class="chart-wrap">
+        <canvas id="monthlyPrice"></canvas>
+      </div>
+      <div class="insight">
+        <strong>평균 단가는 £3.6~4.8 사이에서 등락.</strong> 매출 피크(11월)에도 평균 단가는 오히려 낮은 수준을 보이는데, 이는 <strong>저단가 소품의 대량 구매</strong>가 매출을 이끄는 구조임을 시사합니다. 고단가 상품 라인업 강화가 수익성 개선에 기여할 것입니다.
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">🗓️</span> 월별×요일별 매출 히트맵</div>
+      <div class="chart-subtitle">각 셀: 해당 연월 × 요일의 총 매출액 (GBP, 단위: 천)</div>
+      <div class="table-wrap" id="heatmapWrap">
+        <table id="heatmapTable"></table>
+      </div>
+      <div class="insight">
+        <strong>목요일+11월 조합이 최고 매출 셀.</strong> 11월 수요일~목요일에 집중적인 재고 확보와 물류 인력 배치가 필요합니다. 일요일은 전반적으로 월별 매출 기여도가 낮습니다.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--  섹션 3: 상품 분석                               -->
+<!-- ════════════════════════════════════════════════ -->
+<section class="section" id="section-product">
+  <div class="sec-header">
+    <h2>📦 상품 분석</h2>
+    <p>베스트셀러 상품, 키워드 트렌드, 상품 가격대별 분포를 분석합니다.</p>
+  </div>
+
+  <div class="chart-grid col-full">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">🏆</span> 매출 기준 상위 10개 상품</div>
+      <div class="chart-subtitle">정상 거래 기준 총 매출액(GBP) 상위 10개 상품</div>
+      <div class="chart-wrap tall">
+        <canvas id="topProducts"></canvas>
+      </div>
+      <div class="insight">
+        <strong>DOTCOM POSTAGE(£206K) · REGENCY CAKESTAND 3 TIER(£174K) · PAPER CRAFT LITTLE BIRDIE(£168K)</strong>가 상위권을 차지합니다. 
+        상위 10개 상품의 매출 합계가 전체의 약 15%를 차지하는 <strong>파레토 집중 구조</strong>이며, 이 상품들의 재고 결품 방지가 최우선 과제입니다.
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-grid col-2" style="margin-top:20px;">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">🏷️</span> 주요 상품 키워드 (TF-IDF 기반)</div>
+      <div class="chart-subtitle">상품 Description에서 추출한 핵심 키워드 중요도</div>
+      <div class="chart-wrap tall">
+        <canvas id="keywords"></canvas>
+      </div>
+      <div class="insight">
+        <strong>'SET', 'PINK', 'BLUE', 'VINTAGE'</strong> 키워드가 압도적입니다. 브랜드 아이덴티티가 <strong>홈 데코·선물·빈티지 감성</strong> 카테고리에 특화되어 있으며, 시즌별 컬러 마케팅이 효과적입니다.
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">📊</span> 상품별 매출 비중</div>
+      <div class="chart-subtitle">상위 10개 상품의 매출 구성 비율</div>
+      <div class="chart-wrap tall">
+        <canvas id="productShare"></canvas>
+      </div>
+      <div class="insight">
+        <strong>DOTCOM POSTAGE가 1위</strong>를 차지하나, 이는 실제 상품이 아닌 배송 비용 관련 코드일 수 있습니다. 순수 상품 기준으로는 REGENCY CAKESTAND와 PAPER CRAFT가 핵심 캐시카우입니다.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--  섹션 4: 고객 분석                               -->
+<!-- ════════════════════════════════════════════════ -->
+<section class="section" id="section-customer">
+  <div class="sec-header">
+    <h2>👥 고객 분석</h2>
+    <p>우수 고객 순위, 고객 가치 분포, 구매 행동 패턴을 분석합니다.</p>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-icon">👑</div>
+      <div class="kpi-label">1위 고객 매출</div>
+      <div class="kpi-value">£280K</div>
+      <div class="kpi-sub">CustomerID 14646</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon">📊</div>
+      <div class="kpi-label">Top10 매출 합계</div>
+      <div class="kpi-value">£1.54M</div>
+      <div class="kpi-sub">전체의 약 14.4%</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-icon">🎯</div>
+      <div class="kpi-label">고객 ID 결측률</div>
+      <div class="kpi-value">24.9%</div>
+      <div class="kpi-sub">135,080건 미식별</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-icon">💎</div>
+      <div class="kpi-label">평균 고객 가치</div>
+      <div class="kpi-value">£2,054</div>
+      <div class="kpi-sub">RFM 분석 기준 (Monetary)</div>
+    </div>
+  </div>
+
+  <div class="chart-grid col-full">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">💎</span> 우수 고객 Top 10 (총 구매액 기준)</div>
+      <div class="chart-subtitle">CustomerID 기준 총 매출액 상위 10명</div>
+      <div class="chart-wrap">
+        <canvas id="topCustomers"></canvas>
+      </div>
+      <div class="insight">
+        <strong>1위 고객(14646)의 구매액이 £280K</strong>로 압도적입니다. Top 10 고객 합산 매출이 전체의 약 14.4%를 차지하는 <strong>고의존도 구조</strong>이므로, 이들의 이탈은 즉각적인 매출 충격으로 이어집니다. 
+        <strong>전담 Key Account Manager 배치와 VIP 전용 리텐션 프로그램</strong>이 필수적입니다.
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-grid col-2" style="margin-top:20px;">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">⏰</span> 구매 시간대 패턴</div>
+      <div class="chart-subtitle">시간대별 주문 건수 분포 — B2B 구매 패턴 확인</div>
+      <div class="chart-wrap">
+        <canvas id="customerHour"></canvas>
+      </div>
+      <div class="insight">
+        <strong>오전 10시~오후 3시</strong>가 핵심 구매 시간대. B2B 구매 담당자가 업무 중 주문을 처리하는 패턴입니다. <strong>오전 9~10시 이메일 알림 발송</strong>이 전환율을 높이는 데 효과적입니다.
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">📅</span> 요일별 구매 패턴</div>
+      <div class="chart-subtitle">요일별 주문 건수 비교 (레이더 차트)</div>
+      <div class="chart-wrap">
+        <canvas id="dayRadar"></canvas>
+      </div>
+      <div class="insight">
+        <strong>화~목요일이 핵심 영업일.</strong> 금요일은 약간 하락하며, 토요일은 거래 없음. 주초~중반 타겟 캠페인과 <strong>목요일 플래시 딜</strong>이 매출 극대화에 유리합니다.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--  섹션 5: RFM 세그먼트                            -->
+<!-- ════════════════════════════════════════════════ -->
+<section class="section" id="section-rfm">
+  <div class="sec-header">
+    <h2>🎯 RFM 고객 세그먼테이션</h2>
+    <p>Recency(최근성) × Frequency(빈도) × Monetary(금액) 기반으로 4,338명의 고객을 8개 세그먼트로 분류합니다.</p>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card green">
+      <div class="kpi-icon">🏆</div>
+      <div class="kpi-label">Champions</div>
+      <div class="kpi-value">962명</div>
+      <div class="kpi-sub">최우수 고객 (22.2%)</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-icon">💛</div>
+      <div class="kpi-label">Loyal Customers</div>
+      <div class="kpi-value">758명</div>
+      <div class="kpi-sub">충성 고객 (17.5%)</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-icon">⚠️</div>
+      <div class="kpi-label">At Risk</div>
+      <div class="kpi-value">454명</div>
+      <div class="kpi-sub">이탈 위험 고객 (10.5%)</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-icon">😴</div>
+      <div class="kpi-label">Lost + Hibernating</div>
+      <div class="kpi-value">1,364명</div>
+      <div class="kpi-sub">비활성 고객 (31.4%)</div>
+    </div>
+  </div>
+
+  <div class="chart-grid col-2">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">👥</span> 세그먼트별 고객 수</div>
+      <div class="chart-subtitle">8개 RFM 세그먼트별 고객 수 분포</div>
+      <div class="chart-wrap">
+        <canvas id="rfmSegBar"></canvas>
+      </div>
+      <div class="insight">
+        <strong>Champions(962명)이 최다.</strong> 하지만 Lost(804명)·Hibernating(560명)을 합친 비활성 고객이 31.4%에 달합니다. 
+        <strong>재활성화 캠페인</strong>으로 10%만 복귀시켜도 약 140명의 신규 활성 고객을 확보하게 됩니다.
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">💰</span> 세그먼트별 총 매출 기여</div>
+      <div class="chart-subtitle">각 세그먼트가 전체 매출에 기여하는 비중 (도넛)</div>
+      <div class="chart-wrap">
+        <canvas id="rfmRevDonut"></canvas>
+      </div>
+      <div class="insight">
+        <strong>Champions만으로 전체 매출의 약 67%를 차지.</strong> 파레토 법칙이 극단적으로 작용하는 구조입니다. 
+        Champions 이탈 시 비즈니스 전체에 즉각적이고 치명적인 영향이 발생하므로 <strong>최우선 리텐션 대상</strong>입니다.
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-grid col-full" style="margin-top:20px;">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">📋</span> RFM 세그먼트별 상세 지표</div>
+      <div class="chart-subtitle">고객 수 · 평균 Recency · 평균 Frequency · 평균/총 Monetary 비교 (총 Monetary 내림차순)</div>
+      <div class="chart-wrap tall">
+        <canvas id="rfmMultiBar"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;" class="chart-card">
+    <div class="chart-title"><span class="emoji">📊</span> 세그먼트별 RFM 요약 테이블</div>
+    <div class="chart-subtitle">총 Monetary 내림차순 정렬</div>
+    <div class="table-wrap">
+      <table id="rfmTable">
+        <thead>
+          <tr>
+            <th>세그먼트</th>
+            <th class="right">고객 수</th>
+            <th class="right">평균 Recency (일)</th>
+            <th class="right">평균 Frequency (회)</th>
+            <th class="right">평균 Monetary (£)</th>
+            <th class="right">총 Monetary (£)</th>
+            <th class="center">마케팅 전략</th>
+          </tr>
+        </thead>
+        <tbody id="rfmTableBody"></tbody>
+      </table>
+    </div>
+    <div class="insight green" style="margin-top:12px;">
+      <strong>세그먼트별 마케팅 액션 가이드:</strong><br>
+      🏆 <strong>Champions</strong>: VIP 얼리액세스, 브랜드 앰배서더 초대, 리워드 포인트 2배 &nbsp;|&nbsp;
+      💛 <strong>Loyal</strong>: 생일 쿠폰, 충성도 티어 업그레이드 &nbsp;|&nbsp;
+      ⚠️ <strong>At Risk</strong>: 즉시 리텐션 캠페인, 15~20% 재구매 할인 &nbsp;|&nbsp;
+      😴 <strong>Lost</strong>: 윈백 대폭 할인 오퍼, 신상품 소식 발송
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--  섹션 6: 지역 분석                               -->
+<!-- ════════════════════════════════════════════════ -->
+<section class="section" id="section-geo">
+  <div class="sec-header">
+    <h2>🌍 지역·국가별 매출 분석</h2>
+    <p>국가별 매출 분포와 영국 외 시장의 잠재력을 분석합니다.</p>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-icon">🇬🇧</div>
+      <div class="kpi-label">영국 매출 비중</div>
+      <div class="kpi-value">84.6%</div>
+      <div class="kpi-sub">단일 시장 집중도</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon">🌍</div>
+      <div class="kpi-label">거래 발생 국가</div>
+      <div class="kpi-value">38개국</div>
+      <div class="kpi-sub">글로벌 잠재력 보유</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-icon">🇳🇱</div>
+      <div class="kpi-label">2위 국가 (네덜란드)</div>
+      <div class="kpi-value">£285K</div>
+      <div class="kpi-sub">높은 객단가 보유</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-icon">🇩🇪</div>
+      <div class="kpi-label">유럽 해외 시장 합계</div>
+      <div class="kpi-value">£1.64M</div>
+      <div class="kpi-sub">영국 제외 상위 9개국</div>
+    </div>
+  </div>
+
+  <div class="chart-grid col-full">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">🌍</span> 국가별 매출 상위 10 (영국 포함)</div>
+      <div class="chart-subtitle">총 매출액 기준 상위 10개 국가 — 영국 압도적 1위</div>
+      <div class="chart-wrap tall">
+        <canvas id="countryBar"></canvas>
+      </div>
+      <div class="insight">
+        <strong>영국이 £9.03M으로 전체의 84.6%를 차지.</strong> 단일 시장 의존도가 매우 높아 비즈니스 리스크 분산이 필요합니다.
+        <strong>네덜란드(£285K)·EIRE(£283K)·독일(£229K)</strong>가 확장 유망 시장으로, 현지화 마케팅과 물류 허브 구축을 통한 유럽 시장 점유율 확대가 중장기 성장 전략의 핵심입니다.
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-grid col-2" style="margin-top:20px;">
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">🥧</span> 국가별 매출 비중 (영국 제외)</div>
+      <div class="chart-subtitle">영국 제외 상위 9개국 매출 비중 비교</div>
+      <div class="chart-wrap">
+        <canvas id="countryPie"></canvas>
+      </div>
+      <div class="insight">
+        영국 제외 시장에서 <strong>네덜란드·EIRE가 각각 약 17%</strong>로 동률 1위. 이들 국가의 높은 주문 단가는 B2B 거래 가능성을 시사하며, <strong>맞춤형 도매 계약</strong> 체결이 필요합니다.
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><span class="emoji">📊</span> 해외 시장 매출 순위 테이블</div>
+      <div class="chart-subtitle">영국 제외 국가별 매출 상세 데이터</div>
+      <div class="table-wrap" style="margin-top:0;">
+        <table id="countryTable">
+          <thead>
+            <tr>
+              <th class="center">순위</th>
+              <th>국가</th>
+              <th class="right">총 매출액 (£)</th>
+              <th class="right">비중</th>
+            </tr>
+          </thead>
+          <tbody id="countryTableBody"></tbody>
+        </table>
+      </div>
+      <div class="insight">
+        상위 3개 해외 시장(네덜란드·EIRE·독일)의 합계가 £797K로, 해외 매출의 절반 가까이를 차지합니다. <strong>3개국 집중 공략 전략</strong>으로 해외 매출을 단기간 내 2배로 성장시킬 수 있습니다.
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <p>📊 온라인 리테일 EDA 대시보드 | Chart.js 4.4 기반 단일 HTML 파일 | 데이터: 2010-12 ~ 2011-12</p>
+  <p style="margin-top:4px; font-size:0.75rem;">정상 거래(취소 제외, 양수 수량·단가) 기준으로 분석되었습니다.</p>
+</footer>
+
+<script>
+// ══════════════════════════════════════════════
+//  데이터 정의 (Python에서 추출한 실제 데이터)
+// ══════════════════════════════════════════════
+const DATA = {
+  monthly: {
+    labels: ["2010-12","2011-01","2011-02","2011-03","2011-04","2011-05","2011-06","2011-07","2011-08","2011-09","2011-10","2011-11","2011-12"],
+    revenue: [823746.14,691364.56,523631.89,717639.36,537808.62,770536.02,761739.90,719221.19,759138.38,1058590.17,1154979.30,1509496.33,638792.68],
+    orders:  [1559,1086,1100,1454,1246,1681,1533,1475,1361,1837,2040,2769,819]
+  },
+  day: {
+    labels: ["월요일","화요일","수요일","목요일","금요일","토요일","일요일"],
+    values: [93136,99460,92315,101007,80281,0,63905]
+  },
+  hour: {
+    labels: ["6시","7시","8시","9시","10시","11시","12시","13시","14시","15시","16시","17시","18시","19시","20시"],
+    values: [1,379,8800,33701,47822,56139,77120,71001,65937,76246,53369,27563,7709,3515,802]
+  },
+  country: {
+    labels: ["United Kingdom","Netherlands","EIRE","Germany","France","Australia","Spain","Switzerland","Belgium","Sweden"],
+    values: [9025222.08,285446.34,283453.96,228867.14,209715.11,138521.31,61577.11,57089.90,41196.34,38378.33]
+  },
+  product: {
+    labels: ["RABBIT NIGHT LIGHT","POSTAGE","Manual","MEDIUM CERAMIC TOP STORAGE JAR","JUMBO BAG RED RETROSPOT","PARTY BUNTING","WHITE HANGING HEART T-LIGHT HOLDER","PAPER CRAFT , LITTLE BIRDIE","REGENCY CAKESTAND 3 TIER","DOTCOM POSTAGE"],
+    values: [66964.99,78101.88,78112.82,81700.92,94340.05,99504.33,106292.77,168469.60,174484.74,206248.77]
+  },
+  cancel: { normal: 532621, cancelled: 9288 },
+  monthlyPrice: {
+    labels: ["2010-12","2011-01","2011-02","2011-03","2011-04","2011-05","2011-06","2011-07","2011-08","2011-09","2011-10","2011-11","2011-12"],
+    values: [4.82,3.78,3.99,4.07,3.97,4.16,3.90,3.70,4.02,3.55,3.77,3.60,4.04]
+  },
+  customer: {
+    labels: ["14646","18102","17450","16446","14911","12415","14156","17511","16029","12346"],
+    values: [280206.02,259657.30,194550.79,168472.50,143825.06,124914.53,117379.63,91062.38,81024.84,77183.60]
+  },
+  heatmap: {
+    days: ["월요일","화요일","수요일","목요일","금요일","토요일","일요일"],
+    months: ["2010-12","2011-01","2011-02","2011-03","2011-04","2011-05","2011-06","2011-07","2011-08","2011-09","2011-10","2011-11","2011-12"],
+    matrix: [
+      [119626.3,103276.24,110802.9,98268.34,111633.69,102236.59,94777.02,132976.61,91662.0,145500.52,272800.26,307272.61,88741.96],
+      [192177.02,209737.19,122359.0,177157.57,111101.2,198575.48,138823.42,138848.07,131359.69,229401.94,188030.39,284348.43,56713.21],
+      [140995.36,103185.11,89749.48,118654.94,96459.69,120122.96,156872.32,107940.65,184820.97,150316.25,188385.70,318205.22,75439.16],
+      [162763.57,105985.32,87558.8,173462.2,109734.14,160173.76,183840.05,155136.12,215870.39,248541.14,218751.99,246651.51,134692.25],
+      [151544.96,129144.44,84839.78,104547.98,79297.27,122036.5,119745.82,94508.85,96745.96,185080.67,193930.68,220332.65,258584.67],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null],
+      [56638.93,40036.26,28321.93,45548.33,29582.63,67390.73,67681.27,89810.89,38679.37,99749.65,93080.28,132685.91,24621.43]
+    ]
+  },
+  rfm: {
+    segmentLabels: ["Champions","Loyal Customers","Potential Loyalists","New Customers","At Risk","Cannot Lose Them","Hibernating","Lost"],
+    segmentCounts: [962,758,240,319,454,241,560,804],
+    segmentMonetary: [5809341.07,1396691.42,77436.13,146166.57,742149.95,329637.70,144473.56,265511.50],
+    statsTable: [
+      {Segment:"Champions",        고객수:962, 평균Recency:12.9,  평균Frequency:11.1, 평균Monetary:6038.8, 총Monetary:5809341.1},
+      {Segment:"Loyal Customers",  고객수:758, 평균Recency:35.7,  평균Frequency:4.1,  평균Monetary:1842.6, 총Monetary:1396691.4},
+      {Segment:"At Risk",          고객수:454, 평균Recency:141.6, 평균Frequency:3.8,  평균Monetary:1634.7, 총Monetary:742150.0},
+      {Segment:"Cannot Lose Them", 고객수:241, 평균Recency:181.6, 평균Frequency:1.3,  평균Monetary:1367.8, 총Monetary:329637.7},
+      {Segment:"Lost",             고객수:804, 평균Recency:152.6, 평균Frequency:1.1,  평균Monetary:330.2,  총Monetary:265511.5},
+      {Segment:"New Customers",    고객수:319, 평균Recency:18.5,  평균Frequency:1.2,  평균Monetary:458.2,  총Monetary:146166.6},
+      {Segment:"Hibernating",      고객수:560, 평균Recency:211.4, 평균Frequency:1.5,  평균Monetary:258.0,  총Monetary:144473.6},
+      {Segment:"Potential Loyalists",고객수:240,평균Recency:29.0,  평균Frequency:2.4,  평균Monetary:322.7,  총Monetary:77436.1}
+    ]
+  },
+  keywords: {
+    labels: ["set","pink","blue","vintage","white","red","bag","christmas","holder","design","heart","garden","small","large","box"],
+    values: [320.62,256.41,190.98,172.13,162.45,155.30,148.72,140.55,138.22,132.10,128.44,120.33,118.76,115.92,113.44]
+  }
+};
+
+// ══════════════════════════════════════════════
+//  공통 설정
+// ══════════════════════════════════════════════
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = 'rgba(99,130,255,0.12)';
+Chart.defaults.font.family = "'Noto Sans KR', sans-serif";
+Chart.defaults.font.size = 12;
+
+const PALETTE = {
+  blue:   '#6382ff',
+  cyan:   '#00e5ff',
+  green:  '#22d3a0',
+  orange: '#fb923c',
+  red:    '#f87171',
+  purple: '#a78bfa',
+  yellow: '#fbbf24',
+  pink:   '#f472b6'
+};
+
+const SEG_COLORS = {
+  'Champions':          '#22d3a0',
+  'Loyal Customers':    '#86efac',
+  'Potential Loyalists':'#bef264',
+  'New Customers':      '#93c5fd',
+  'At Risk':            '#fdba74',
+  'Cannot Lose Them':   '#fca5a5',
+  'Hibernating':        '#d8b4fe',
+  'Lost':               '#d1d5db'
+};
+
+const SEG_CLASS = {
+  'Champions':          'seg-champions',
+  'Loyal Customers':    'seg-loyal',
+  'Potential Loyalists':'seg-potential',
+  'New Customers':      'seg-new',
+  'At Risk':            'seg-atrisk',
+  'Cannot Lose Them':   'seg-cannotlose',
+  'Hibernating':        'seg-hibernating',
+  'Lost':               'seg-lost'
+};
+
+const SEG_ACTION = {
+  'Champions':          'VIP 전용 혜택, 브랜드 앰배서더',
+  'Loyal Customers':    '생일쿠폰, 티어 업그레이드',
+  'Potential Loyalists':'2차 구매 유도, 번들 추천',
+  'New Customers':      '웰컴 시리즈, 첫 구매 감사',
+  'At Risk':            '긴급 리텐션, 재구매 할인',
+  'Cannot Lose Them':   'VIP 복귀 혜택, 전담 상담',
+  'Hibernating':        '재활성화 캠페인, 뉴스레터',
+  'Lost':               '윈백 오퍼, 마지막 기회'
+};
+
+function fmt(n, decimals=0) {
+  return n.toLocaleString('ko-KR', {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+}
+function gradientH(ctx, c1, c2) {
+  const g = ctx.createLinearGradient(0,0,ctx.canvas.width,0);
+  g.addColorStop(0, c1); g.addColorStop(1, c2); return g;
+}
+function gradientV(ctx, c1, c2, h) {
+  const g = ctx.createLinearGradient(0,0,0,h||300);
+  g.addColorStop(0, c1); g.addColorStop(1, c2); return g;
+}
+
+const BASE_OPT = {
+  responsive: true,
+  maintainAspectRatio: true,
+  plugins: { legend: { display: false }, datalabels: { display: false } }
+};
+
+// ══════════════════════════════════════════════
+//  섹션 1: 개요
+// ══════════════════════════════════════════════
+// 1-a. 개요 매출 추이 (라인)
+(function() {
+  const ctx = document.getElementById('overviewTrend').getContext('2d');
+  const grad = gradientV(ctx, 'rgba(99,130,255,0.4)', 'rgba(99,130,255,0.02)', 300);
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: DATA.monthly.labels,
+      datasets: [{
+        label: '월 매출액 (£)',
+        data: DATA.monthly.revenue,
+        borderColor: PALETTE.blue,
+        backgroundColor: grad,
+        borderWidth: 2.5,
+        pointBackgroundColor: PALETTE.blue,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      plugins: { ...BASE_OPT.plugins,
+        tooltip: { callbacks: { label: c => `  £${fmt(c.raw)}` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(99,130,255,0.08)' } },
+        y: { grid: { color: 'rgba(99,130,255,0.08)' },
+             ticks: { callback: v => `£${(v/1000).toFixed(0)}K` } }
+      }
+    }
+  });
+})();
+
+// 1-b. 취소 도넛
+(function() {
+  const ctx = document.getElementById('cancelDonut').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['정상 주문', '취소 주문'],
+      datasets: [{
+        data: [DATA.cancel.normal, DATA.cancel.cancelled],
+        backgroundColor: [PALETTE.green, PALETTE.red],
+        borderColor: '#111827', borderWidth: 3,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      plugins: { ...BASE_OPT.plugins,
+        legend: { display: true, position: 'bottom',
+          labels: { color: '#94a3b8', font: {size:11}, padding: 16 } },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}건 (${(c.raw/(DATA.cancel.normal+DATA.cancel.cancelled)*100).toFixed(1)}%)` } }
+      },
+      cutout: '70%'
+    }
+  });
+})();
+
+// 1-c. 요일별 바
+(function() {
+  const ctx = document.getElementById('dayBar').getContext('2d');
+  const colors = DATA.day.values.map((v,i) => i===3 ? PALETTE.cyan : (i===5 ? 'rgba(107,114,128,0.3)' : PALETTE.blue));
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.day.labels,
+      datasets: [{
+        label: '주문 건수',
+        data: DATA.day.values,
+        backgroundColor: colors,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: 'rgba(99,130,255,0.08)' }, ticks: { callback: v => `${(v/1000).toFixed(0)}K` } }
+      },
+      plugins: { ...BASE_OPT.plugins,
+        tooltip: { callbacks: { label: c => ` ${fmt(c.raw)}건` } }
+      }
+    }
+  });
+})();
+
+// 1-d. 시간대 라인
+(function() {
+  const ctx = document.getElementById('hourLine').getContext('2d');
+  const grad = gradientV(ctx, 'rgba(0,229,255,0.35)', 'rgba(0,229,255,0.02)', 240);
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: DATA.hour.labels,
+      datasets: [{
+        label: '주문 건수',
+        data: DATA.hour.values,
+        borderColor: PALETTE.cyan,
+        backgroundColor: grad,
+        borderWidth: 2, fill: true, tension: 0.4,
+        pointRadius: 3, pointBackgroundColor: PALETTE.cyan
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: 'rgba(99,130,255,0.08)' }, ticks: { callback: v => `${(v/1000).toFixed(0)}K` } }
+      }
+    }
+  });
+})();
+
+// ══════════════════════════════════════════════
+//  섹션 2: 매출
+// ══════════════════════════════════════════════
+// 2-a. 콤보 차트
+(function() {
+  const ctx = document.getElementById('salesCombo').getContext('2d');
+  const grad = gradientV(ctx, 'rgba(99,130,255,0.35)', 'rgba(99,130,255,0.02)', 380);
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.monthly.labels,
+      datasets: [
+        { type:'bar', label:'총 매출액 (£)', data: DATA.monthly.revenue,
+          backgroundColor: grad, borderRadius:8, yAxisID:'y' },
+        { type:'line', label:'주문 건수', data: DATA.monthly.orders,
+          borderColor: PALETTE.cyan, backgroundColor:'transparent',
+          borderWidth:2.5, pointRadius:5, pointBackgroundColor:PALETTE.cyan,
+          tension:0.4, yAxisID:'y2' }
+      ]
+    },
+    options: {
+      ...BASE_OPT,
+      plugins: { ...BASE_OPT.plugins,
+        legend: { display: true, position:'top',
+          labels: { color:'#94a3b8', font:{size:11}, padding:16, usePointStyle:true } },
+        tooltip: { mode:'index', intersect:false }
+      },
+      scales: {
+        x: { grid: { display:false } },
+        y: { grid: { color:'rgba(99,130,255,0.08)' }, position:'left', ticks: { callback: v=>`£${(v/1000).toFixed(0)}K` } },
+        y2: { grid: { display:false }, position:'right', ticks: { callback: v=>`${v}건` } }
+      }
+    }
+  });
+})();
+
+// 2-b. 월별 평균 단가
+(function() {
+  const ctx = document.getElementById('monthlyPrice').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.monthlyPrice.labels,
+      datasets: [{
+        label:'평균 단가 (£)',
+        data: DATA.monthlyPrice.values,
+        backgroundColor: DATA.monthlyPrice.values.map(v=>
+          v>4.5?PALETTE.orange:(v>4.0?PALETTE.yellow:PALETTE.green)),
+        borderRadius:6
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      scales: {
+        x: { grid:{ display:false } },
+        y: { min:3, max:5.5, grid:{ color:'rgba(99,130,255,0.08)' },
+             ticks:{ callback:v=>`£${v.toFixed(2)}` } }
+      },
+      plugins: { ...BASE_OPT.plugins,
+        tooltip:{ callbacks:{ label:c=>` £${c.raw.toFixed(2)}` } }
+      }
+    }
+  });
+})();
+
+// 2-c. 히트맵 테이블 생성
+(function() {
+  const {days, months, matrix} = DATA.heatmap;
+  // 최대값 구하기 (색상 정규화용)
+  let maxVal = 0;
+  matrix.forEach(row => row.forEach(v => { if(v && v > maxVal) maxVal = v; }));
+
+  const table = document.getElementById('heatmapTable');
+  // 헤더
+  let hdrHtml = '<thead><tr><th style="background:#0d1529;position:sticky;left:0;z-index:2;">요일 \\ 연월</th>';
+  months.forEach(m => { hdrHtml += `<th>${m.replace('20','')}</th>`; });
+  hdrHtml += '</tr></thead>';
+  table.innerHTML = hdrHtml;
+
+  // 본문
+  const tbody = document.createElement('tbody');
+  days.forEach((day, di) => {
+    const tr = document.createElement('tr');
+    const th = document.createElement('th');
+    th.textContent = day;
+    th.style.cssText = 'background:#0d1529;position:sticky;left:0;z-index:1;';
+    tr.appendChild(th);
+    months.forEach((m, mi) => {
+      const v = matrix[di][mi];
+      const td = document.createElement('td');
+      td.className = 'heat-cell';
+      if (v === null || v === undefined || isNaN(v)) {
+        td.textContent = '-';
+        td.style.color = '#374151';
+        td.style.background = '#111827';
+      } else {
+        const ratio = v / maxVal;
+        const r = Math.round(99 + (0-99)*ratio);
+        const g = Math.round(130 + (229-130)*ratio*0.3);
+        const b = Math.round(255);
+        td.style.background = `rgba(${Math.round(ratio*40+30)},${Math.round(ratio*100+50)},${Math.round(ratio*180+80)},${(ratio*0.7+0.15).toFixed(2)})`;
+        td.style.color = ratio > 0.5 ? '#fff' : '#94a3b8';
+        td.textContent = `${(v/1000).toFixed(0)}K`;
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+})();
+
+// ══════════════════════════════════════════════
+//  섹션 3: 상품
+// ══════════════════════════════════════════════
+// 3-a. 상위 10 상품 가로 바
+(function() {
+  const ctx = document.getElementById('topProducts').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.product.labels,
+      datasets: [{
+        label:'매출액 (£)',
+        data: DATA.product.values,
+        backgroundColor: (context) => {
+          const ctx2 = context.chart.ctx;
+          const g = ctx2.createLinearGradient(0,0,context.chart.chartArea?.right||600,0);
+          g.addColorStop(0, 'rgba(99,130,255,0.6)');
+          g.addColorStop(1, 'rgba(0,229,255,0.9)');
+          return g;
+        },
+        borderRadius:6
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      indexAxis: 'y',
+      scales: {
+        x: { grid:{ color:'rgba(99,130,255,0.08)' }, ticks:{ callback:v=>`£${(v/1000).toFixed(0)}K` } },
+        y: { grid:{ display:false }, ticks:{ font:{size:10} } }
+      },
+      plugins: { ...BASE_OPT.plugins,
+        tooltip:{ callbacks:{ label:c=>` £${fmt(c.raw)}` } }
+      }
+    }
+  });
+})();
+
+// 3-b. 키워드 바 (가로)
+(function() {
+  const ctx = document.getElementById('keywords').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.keywords.labels.slice().reverse(),
+      datasets: [{
+        label: 'TF-IDF 중요도',
+        data: DATA.keywords.values.slice().reverse(),
+        backgroundColor: DATA.keywords.labels.map((_,i) => {
+          const palette = [PALETTE.pink, PALETTE.purple, PALETTE.blue, PALETTE.cyan, PALETTE.green];
+          return palette[i % palette.length] + 'cc';
+        }).slice().reverse(),
+        borderRadius: 5
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      indexAxis: 'y',
+      scales: {
+        x: { grid:{ color:'rgba(99,130,255,0.08)' } },
+        y: { grid:{ display:false } }
+      }
+    }
+  });
+})();
+
+// 3-c. 상품 비중 도넛
+(function() {
+  const ctx = document.getElementById('productShare').getContext('2d');
+  const colors = [PALETTE.blue,PALETTE.cyan,PALETTE.green,PALETTE.yellow,PALETTE.orange,PALETTE.red,PALETTE.purple,PALETTE.pink,'#64748b','#475569'];
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: DATA.product.labels.slice().reverse(),
+      datasets: [{
+        data: DATA.product.values.slice().reverse(),
+        backgroundColor: colors,
+        borderColor: '#111827', borderWidth: 2,
+        hoverOffset: 10
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      cutout: '55%',
+      plugins: { ...BASE_OPT.plugins,
+        legend: { display: true, position:'bottom',
+          labels: { color:'#94a3b8', font:{size:9}, padding:8, boxWidth:10 } },
+        tooltip: { callbacks: { label: c => ` £${fmt(c.raw)} (${(c.raw/DATA.product.values.reduce((a,b)=>a+b,0)*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+})();
+
+// ══════════════════════════════════════════════
+//  섹션 4: 고객
+// ══════════════════════════════════════════════
+// 4-a. 우수 고객 바
+(function() {
+  const ctx = document.getElementById('topCustomers').getContext('2d');
+  const colors = DATA.customer.values.map((v,i) => {
+    const t = i/9;
+    return `hsla(${200+t*60},80%,${65-t*15}%,0.85)`;
+  });
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.customer.labels.map(l=>`고객 #${l}`),
+      datasets: [{
+        label: '총 구매액 (£)',
+        data: DATA.customer.values,
+        backgroundColor: colors,
+        borderRadius: 7
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      scales: {
+        x: { grid:{ display:false } },
+        y: { grid:{ color:'rgba(99,130,255,0.08)' }, ticks:{ callback:v=>`£${(v/1000).toFixed(0)}K` } }
+      },
+      plugins: { ...BASE_OPT.plugins,
+        tooltip:{ callbacks:{ label:c=>` £${fmt(c.raw)}` } }
+      }
+    }
+  });
+})();
+
+// 4-b. 시간대 라인 (고객 섹션)
+(function() {
+  const ctx = document.getElementById('customerHour').getContext('2d');
+  const grad = gradientV(ctx, 'rgba(167,139,250,0.35)', 'rgba(167,139,250,0.02)', 300);
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: DATA.hour.labels,
+      datasets: [{
+        label:'주문 건수',
+        data: DATA.hour.values,
+        borderColor: PALETTE.purple,
+        backgroundColor: grad,
+        borderWidth:2.5, fill:true, tension:0.4,
+        pointRadius:4, pointBackgroundColor:PALETTE.purple
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      scales: {
+        x:{ grid:{ display:false } },
+        y:{ grid:{ color:'rgba(99,130,255,0.08)' }, ticks:{ callback:v=>`${(v/1000).toFixed(0)}K` } }
+      }
+    }
+  });
+})();
+
+// 4-c. 요일 레이더
+(function() {
+  const ctx = document.getElementById('dayRadar').getContext('2d');
+  new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: DATA.day.labels,
+      datasets: [{
+        label: '주문 건수',
+        data: DATA.day.values,
+        borderColor: PALETTE.cyan,
+        backgroundColor: 'rgba(0,229,255,0.15)',
+        borderWidth: 2,
+        pointBackgroundColor: PALETTE.cyan,
+        pointRadius: 4
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      scales: {
+        r: {
+          grid: { color:'rgba(99,130,255,0.15)' },
+          angleLines: { color:'rgba(99,130,255,0.15)' },
+          pointLabels: { color:'#94a3b8', font:{size:11} },
+          ticks: { display:false }
+        }
+      }
+    }
+  });
+})();
+
+// ══════════════════════════════════════════════
+//  섹션 5: RFM
+// ══════════════════════════════════════════════
+// 5-a. 세그먼트 바
+(function() {
+  const ctx = document.getElementById('rfmSegBar').getContext('2d');
+  const colors = DATA.rfm.segmentLabels.map(s => SEG_COLORS[s]);
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.rfm.segmentLabels,
+      datasets: [{
+        label:'고객 수',
+        data: DATA.rfm.segmentCounts,
+        backgroundColor: colors,
+        borderRadius: 7
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      scales: {
+        x: { grid:{ display:false }, ticks:{ font:{size:10} } },
+        y: { grid:{ color:'rgba(99,130,255,0.08)' }, ticks:{ callback:v=>`${v}명` } }
+      },
+      plugins: { ...BASE_OPT.plugins,
+        tooltip:{ callbacks:{ label:c=>` ${fmt(c.raw)}명` } }
+      }
+    }
+  });
+})();
+
+// 5-b. 세그먼트 매출 도넛
+(function() {
+  const ctx = document.getElementById('rfmRevDonut').getContext('2d');
+  const colors = DATA.rfm.segmentLabels.map(s => SEG_COLORS[s]);
+  const total = DATA.rfm.segmentMonetary.reduce((a,b)=>a+b,0);
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: DATA.rfm.segmentLabels,
+      datasets: [{
+        data: DATA.rfm.segmentMonetary,
+        backgroundColor: colors,
+        borderColor: '#111827', borderWidth:2,
+        hoverOffset:10
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      cutout: '60%',
+      plugins: { ...BASE_OPT.plugins,
+        legend: { display:true, position:'bottom',
+          labels:{ color:'#94a3b8', font:{size:10}, padding:10, boxWidth:12, usePointStyle:true } },
+        tooltip:{ callbacks:{ label:c=>` £${fmt(c.raw)} (${(c.raw/total*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+})();
+
+// 5-c. RFM 멀티 바 (총 Monetary 기준)
+(function() {
+  const ctx = document.getElementById('rfmMultiBar').getContext('2d');
+  const sorted = [...DATA.rfm.statsTable].sort((a,b)=>b['총Monetary']-a['총Monetary']);
+  const labels = sorted.map(r=>r.Segment);
+  const monetary = sorted.map(r=>r['총Monetary']);
+  const recency  = sorted.map(r=>r['평균Recency']);
+  const frequency= sorted.map(r=>r['평균Frequency']*10000);
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'총 Monetary (£)', data:monetary, backgroundColor: PALETTE.blue+'cc', borderRadius:5, yAxisID:'y' },
+        { label:'평균 Recency (일)', data:recency, backgroundColor: PALETTE.orange+'cc', borderRadius:5, yAxisID:'y2' },
+      ]
+    },
+    options: {
+      ...BASE_OPT,
+      plugins: { ...BASE_OPT.plugins,
+        legend:{ display:true, position:'top',
+          labels:{ color:'#94a3b8', font:{size:11}, padding:16, usePointStyle:true } }
+      },
+      scales: {
+        x: { grid:{ display:false }, ticks:{ font:{size:10} } },
+        y: { position:'left', grid:{ color:'rgba(99,130,255,0.08)' }, ticks:{ callback:v=>`£${(v/1000).toFixed(0)}K` } },
+        y2: { position:'right', grid:{ display:false }, ticks:{ callback:v=>`${v}일` } }
+      }
+    }
+  });
+})();
+
+// 5-d. RFM 테이블 렌더링
+(function() {
+  const tbody = document.getElementById('rfmTableBody');
+  const sorted = [...DATA.rfm.statsTable].sort((a,b)=>b['총Monetary']-a['총Monetary']);
+  sorted.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="seg-badge ${SEG_CLASS[row.Segment]}">${row.Segment}</span></td>
+      <td class="right">${fmt(row['고객수'])}명</td>
+      <td class="right">${fmt(row['평균Recency'],1)}일</td>
+      <td class="right">${fmt(row['평균Frequency'],1)}회</td>
+      <td class="right">£${fmt(row['평균Monetary'],1)}</td>
+      <td class="right">£${fmt(row['총Monetary'],0)}</td>
+      <td class="center" style="font-size:0.75rem;color:#94a3b8;">${SEG_ACTION[row.Segment]||''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+})();
+
+// ══════════════════════════════════════════════
+//  섹션 6: 지역
+// ══════════════════════════════════════════════
+// 6-a. 국가 가로 바
+(function() {
+  const ctx = document.getElementById('countryBar').getContext('2d');
+  const colors = DATA.country.values.map((v,i) =>
+    i===0 ? PALETTE.blue : [PALETTE.cyan,PALETTE.green,PALETTE.yellow,PALETTE.orange,PALETTE.red,PALETTE.purple,PALETTE.pink,'#64748b','#475569'][i-1]
+  );
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.country.labels,
+      datasets: [{
+        label:'총 매출액 (£)',
+        data: DATA.country.values,
+        backgroundColor: colors,
+        borderRadius: 7
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      indexAxis: 'y',
+      scales: {
+        x: { grid:{ color:'rgba(99,130,255,0.08)' }, ticks:{ callback:v=>`£${(v/1000000).toFixed(1)}M` } },
+        y: { grid:{ display:false } }
+      },
+      plugins: { ...BASE_OPT.plugins,
+        tooltip:{ callbacks:{ label:c=>` £${fmt(c.raw)}` } }
+      }
+    }
+  });
+})();
+
+// 6-b. 영국 제외 파이
+(function() {
+  const ctx = document.getElementById('countryPie').getContext('2d');
+  const labels = DATA.country.labels.slice(1);
+  const values = DATA.country.values.slice(1);
+  const colors = [PALETTE.cyan,PALETTE.green,PALETTE.yellow,PALETTE.orange,PALETTE.red,PALETTE.purple,PALETTE.pink,'#64748b','#475569'];
+  const total = values.reduce((a,b)=>a+b,0);
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderColor:'#111827', borderWidth:2, hoverOffset:10
+      }]
+    },
+    options: {
+      ...BASE_OPT,
+      cutout: '50%',
+      plugins: { ...BASE_OPT.plugins,
+        legend:{ display:true, position:'bottom',
+          labels:{ color:'#94a3b8', font:{size:10}, padding:8, boxWidth:10 } },
+        tooltip:{ callbacks:{ label:c=>` £${fmt(c.raw)} (${(c.raw/total*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+})();
+
+// 6-c. 국가 테이블 (영국 제외)
+(function() {
+  const tbody = document.getElementById('countryTableBody');
+  const total = DATA.country.values.slice(1).reduce((a,b)=>a+b,0);
+  DATA.country.labels.slice(1).forEach((country, i) => {
+    const v = DATA.country.values[i+1];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="center" style="font-weight:700;color:${['#fbbf24','#94a3b8','#fb923c'][i]||'#64748b'}">${i+1}</td>
+      <td>${country}</td>
+      <td class="right">£${fmt(v)}</td>
+      <td class="right">${(v/total*100).toFixed(1)}%</td>
+    `;
+    tbody.appendChild(tr);
+  });
+})();
+
+// ══════════════════════════════════════════════
+//  탭 내비게이션
+// ══════════════════════════════════════════════
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('section-' + btn.dataset.section).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
